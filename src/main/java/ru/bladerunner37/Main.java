@@ -20,7 +20,7 @@ import static java.nio.file.FileVisitResult.TERMINATE;
 public class Main {
 
     private static final HttpClient CLIENT = HttpClientBuilder.create().build();
-    private static final String DOWNLOAD = "http://search.maven.org/remotecontent?filepath=%s";
+    private static final String DOWNLOAD_URL = "http://search.maven.org/remotecontent?filepath=%s";
     private static final String INPUT = "jars.txt";
     private static final String DEST = "toNexus.zip";
 
@@ -37,15 +37,16 @@ public class Main {
                 main.downloadPomAndJar(artiInfo);
             }
 
-            System.out.print("Artifacts downloaded, packing to zip...");
+            print("Artifacts downloaded, packing to zip...");
             ZipUtil.pack(main.temp, new File(DEST));
-            System.out.println("  SUCCESS");
+            println("  SUCCESS");
         } catch (Throwable t) {
-            System.out.println(t.getMessage());
+            println(t.getMessage());
             t.printStackTrace();
         } finally {
-            deleteFileOrFolder(main.inputFile.toPath());
-            deleteFileOrFolder(main.temp.toPath());
+            String err = "Fail to delete temp file: ";
+            deleteFileOrFolder(main.inputFile.toPath(), err.concat(main.inputFile.getName()));
+            deleteFileOrFolder(main.temp.toPath(), err.concat(main.temp.getName()));
         }
     }
 
@@ -53,13 +54,13 @@ public class Main {
         File dest = new File(DEST);
 
         if (dest.exists()) {
-            deleteFileOrFolder(dest.toPath());
+            deleteFileOrFolder(dest.toPath(), "Fail to delete existing \"toNexus.zip\" file");
         }
 
         this.inputFile = new File(inputFileName);
 
         if (!this.inputFile.exists()) {
-            System.out.println("Input file not found");
+            println("Input file not found");
             System.exit(0);
         }
 
@@ -69,33 +70,39 @@ public class Main {
 
     private void downloadPomAndJar(ArtiInfo artiInfo) throws Exception {
         try {
-            System.out.print("Artifact downloading: " + artiInfo.getRawString() + "...");
+            print("Artifact downloading: " + artiInfo.getRawString() + "...");
             File dir = createArtiDir(artiInfo);
 
             String pomPath = prepareFilepath(artiInfo).concat(".pom");
             String jarPath = prepareFilepath(artiInfo).concat(".jar");
 
-            HttpGet request = new HttpGet(String.format(DOWNLOAD, pomPath));
-            HttpResponse response = CLIENT.execute(request);
+            HttpGet pomRequest = new HttpGet(String.format(DOWNLOAD_URL, pomPath));
+            HttpResponse pomResponse = CLIENT.execute(pomRequest);
 
             File pom = new File(dir, "pom.xml");
-            pom.createNewFile();
-            copyFile(response.getEntity().getContent(), new FileOutputStream(pom));
+            copyFileFromResponse(pomResponse, pom);
 
-            HttpGet request1 = new HttpGet(String.format(DOWNLOAD, jarPath));
-            HttpResponse response1 = CLIENT.execute(request1);
+            HttpGet jarRequest = new HttpGet(String.format(DOWNLOAD_URL, jarPath));
+            HttpResponse jarResponse = CLIENT.execute(jarRequest);
 
             File jar = new File(dir, artiInfo.getName() + "-" + artiInfo.getVersion() + ".jar");
-            jar.createNewFile();
-            copyFile(response1.getEntity().getContent(), new FileOutputStream(jar));
-            System.out.println("  SUCCESS");
+            copyFileFromResponse(jarResponse, jar);
+            
+            println("  SUCCESS");
         } catch (Throwable t) {
-            System.out.println("  FAIL");
+            println("  FAIL");
             throw new Exception("Cause:", t);
         }
     }
 
-    private void copyFile(InputStream is, OutputStream os) throws IOException {
+    private void copyFileFromResponse(HttpResponse response, File dest) throws IOException {
+        InputStream is = response.getEntity().getContent();
+
+        if (!dest.exists()) {
+            dest.createNewFile();
+        }
+
+        OutputStream os = new FileOutputStream(dest);
         byte[] buf = new byte[1024];
         int length;
 
@@ -169,8 +176,16 @@ public class Main {
 
         return artiInfo;
     }
+    
+    private static void println(String s) {
+        System.out.println(s);
+    }
 
-    private static void deleteFileOrFolder(final Path path) {
+    private static void print(String s) {
+        System.out.print(s);
+    }
+
+    private static void deleteFileOrFolder(final Path path, String errorText) {
         try {
             Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
                 @Override
@@ -199,7 +214,7 @@ public class Main {
                 }
             });
         } catch (IOException e) {
-            System.out.println("Fail to delete temp files");
+            println(errorText);
             e.printStackTrace();
         }
     }
