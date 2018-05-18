@@ -35,7 +35,7 @@ class WalkGraph extends DefaultTask {
         Set<ModuleVersionIdentifier> mviSet = new HashSet<>()
         Set<? extends DependencyResult> found = root.dependencies
 
-        if (found.size() == 2) {
+        if (found.size() == 3) {
             logger.quiet("Dependency was not found in project")
             return
         }
@@ -80,17 +80,18 @@ class WalkGraph extends DefaultTask {
     }
 
     private void traverseDependencies(int level, Set<? extends DependencyResult> results, Set<ModuleVersionIdentifier> mviSet) {
+
         for (DependencyResult result : results) {
+            ResolvedComponentResult componentResult = result.selected
+            ModuleVersionIdentifier mvi = componentResult.moduleVersion
+            ComponentIdentifier componentIdentifier = componentResult.id
+
             if (result instanceof ResolvedDependencyResult) {
-                ResolvedComponentResult componentResult = result.selected
-                ModuleVersionIdentifier mvi = componentResult.moduleVersion
-                ComponentIdentifier componentIdentifier = componentResult.id
                 mviSet.add(mvi)
                 String node = ident(level) + "- $componentIdentifier.displayName ($componentResult.selectionReason)"
                 logger.quiet(node)
                 traverseDependencies(level + 1, componentResult.dependencies, mviSet)
             } else if (result instanceof UnresolvedDependencyResult) {
-                ComponentSelector componentSelector = result.attempted
                 String node = ident(level) + "- $componentIdentifier.displayName (failed)"
                 logger.quiet(node)
             }
