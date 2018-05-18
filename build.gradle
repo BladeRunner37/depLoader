@@ -1,0 +1,103 @@
+group 'bladerunner37'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'java'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile group: 'net.logstash.logback', name: 'logstash-logback-encoder', version: '5.1'
+
+    // do not remove
+    compile group: 'org.apache.httpcomponents', name: 'httpclient', version: '4.5.5'
+    compile group: 'org.zeroturnaround', name: 'zt-zip', version: '1.13'
+    compile group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.25'
+}
+
+task walkGraph(type: WalkGraph) {
+
+}
+
+compileJava.dependsOn walkGraph
+
+class WalkGraph extends DefaultTask {
+
+    @TaskAction
+    void walk() {
+
+        Configuration configuration = project.configurations.compile
+        ResolutionResult resolutionResult = configuration.incoming.resolutionResult
+        ResolvedComponentResult root = resolutionResult.root
+        Set<ModuleVersionIdentifier> mviSet = new HashSet<>()
+        Set<? extends DependencyResult> found = root.dependencies
+
+        if (found.size() == 2) {
+            logger.quiet("Dependency was not found in project")
+            return
+        }
+
+        Set<? extends DependencyResult> hFound = new HashSet<>()
+        hFound.addAll(found)
+
+        Iterator<? extends DependencyResult> iterator = hFound.iterator()
+        while (iterator.hasNext()) {
+            DependencyResult result = iterator.next();
+            ResolvedComponentResult componentResult = result.selected
+            ModuleVersionIdentifier mvi = componentResult.moduleVersion
+
+            if (mvi.group.equals("org.apache.httpcomponents") && mvi.name.equals("httpclient") || mvi.group.equals("org.zeroturnaround") && mvi.name.equals("zt-zip") || mvi.name.equals("slf4j-simple")) {
+                iterator.remove()
+            }
+        }
+
+        logger.quiet("Dependency tree for project")
+
+        traverseDependencies(0, hFound, mviSet)
+
+        File file = new File("jars.txt")
+
+        if (file.exists()) {
+            file.delete()
+        }
+
+        file.createNewFile()
+        OutputStream os = new FileOutputStream(file)
+
+        mviSet.each { mvi ->
+            String line = mvi.group + ":" + mvi.name + ":" + mvi.version
+            os.write(line.getBytes())
+            os.write("\n".getBytes())
+        }
+
+        os.close()
+
+        logger.quiet("")
+        logger.quiet("Artifact description prepared, run Main.main() to download and pack artifacts")
+    }
+
+    private void traverseDependencies(int level, Set<? extends DependencyResult> results, Set<ModuleVersionIdentifier> mviSet) {
+        for (DependencyResult result : results) {
+            if (result instanceof ResolvedDependencyResult) {
+                ResolvedComponentResult componentResult = result.selected
+                ModuleVersionIdentifier mvi = componentResult.moduleVersion
+                ComponentIdentifier componentIdentifier = componentResult.id
+                mviSet.add(mvi)
+                String node = ident(level) + "- $componentIdentifier.displayName ($componentResult.selectionReason)"
+                logger.quiet(node)
+                traverseDependencies(level + 1, componentResult.dependencies, mviSet)
+            } else if (result instanceof UnresolvedDependencyResult) {
+                ComponentSelector componentSelector = result.attempted
+                String node = ident(level) + "- $componentIdentifier.displayName (failed)"
+                logger.quiet(node)
+            }
+        }
+    }
+
+    private static String ident(int level) {
+        '    ' * level
+    }
+}
