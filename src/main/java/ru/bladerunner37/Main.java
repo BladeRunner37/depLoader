@@ -32,19 +32,14 @@ public class Main {
 
         try {
             main.prepareFiles(INPUT);
-            Set<Boolean> success = new HashSet<>();
 
-            main.artifacts().forEach(artiInfo -> {
-                success.add(main.downloadPomAndJar(artiInfo));
-            });
-
-            if (success.contains(Boolean.FALSE)) {
-                System.out.println("Not all artifacts was downloaded, aborting...");
-            } else {
-                System.out.print("Artifacts downloaded, packing to zip...");
-                ZipUtil.pack(main.temp, new File(DEST));
-                System.out.println("  SUCCESS");
+            for (ArtiInfo artiInfo : main.artifacts()) {
+                main.downloadPomAndJar(artiInfo);
             }
+
+            System.out.print("Artifacts downloaded, packing to zip...");
+            ZipUtil.pack(main.temp, new File(DEST));
+            System.out.println("  SUCCESS");
         } catch (Throwable t) {
             System.out.println(t.getMessage());
             t.printStackTrace();
@@ -72,7 +67,7 @@ public class Main {
         this.temp.mkdirs();
     }
 
-    private Boolean downloadPomAndJar(ArtiInfo artiInfo) {
+    private void downloadPomAndJar(ArtiInfo artiInfo) throws Exception {
         try {
             System.out.print("Artifact downloading: " + artiInfo.getRawString() + "...");
             File dir = createArtiDir(artiInfo);
@@ -94,13 +89,9 @@ public class Main {
             jar.createNewFile();
             copyFile(response1.getEntity().getContent(), new FileOutputStream(jar));
             System.out.println("  SUCCESS");
-
-            return Boolean.TRUE;
-        } catch (Exception e) {
-            System.out.println("Fail to download files for artifact: " + artiInfo.getRawString());
-            e.printStackTrace();
-
-            return Boolean.FALSE;
+        } catch (Throwable t) {
+            System.out.println("  FAIL");
+            throw new Exception("Cause:", t);
         }
     }
 
