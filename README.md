@@ -8,8 +8,11 @@ Download artifacts from Maven Central, pack to zip
 
 NOTE.
 Dependencies
+
   group: 'org.apache.httpcomponents', name: 'httpclient', version: '4.5.5'
+  
   group: 'org.zeroturnaround', name: 'zt-zip', version: '1.13'
+  
   group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.25'
 
 will be ignored by walkGraph task, they are needed for this project only. If you want to resolve artifacts for this 
